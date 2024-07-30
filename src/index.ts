@@ -25,7 +25,12 @@ const cache = new Map<string, {
 }>();
 
 const app = new Elysia()
-  .get("/", () => "Hello from Elysia!")
+  .get("/", () => {
+    return {
+      hello: "Hello from Elysia!",
+      verification: Bun.file('public/googled23ff0e3284ed5f2.html')
+    }
+  })
   .group('/spotify', app => {
     return app
       // Send the user an authorization redirect
