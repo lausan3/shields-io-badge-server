@@ -95,7 +95,7 @@ const app = new Elysia()
           
           const ret: ShieldsJSONFormat = {
             schemaVersion: 1,
-            label: "Last Song",
+            label: "Last Song Played",
             message: `${lastSong.name} by ${lastSong.artists[0].name}`,
             namedLogo: "spotify"
           }
