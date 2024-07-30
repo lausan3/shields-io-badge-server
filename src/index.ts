@@ -4,6 +4,7 @@ import { config } from 'dotenv';
 // Endpoints
 import ShieldsJSONFormat from "./shields/shields-format";
 
+// Run locally only
 // config();
 
 const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -14,7 +15,11 @@ let accessToken: string | null = null;
 
 const app = new Elysia()
   .get("/", () => "Hello from Elysia!")
-  .all('/spotify/authorize', () => {
+  .all('/spotify/authorize', async () => {
+    if (accessToken) {
+      return await fetch(`${baseUri}/spotify/lastplayed`);
+    }
+
     const scope = "user-read-recently-played";
 
     const baseUrl = "https://accounts.spotify.com/authorize";
