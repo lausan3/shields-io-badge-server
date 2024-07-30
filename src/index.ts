@@ -6,18 +6,15 @@ import { supabase, KEY_SPOTIFY_TABLE } from "./client/client";
 import ShieldsJSONFormat from "./models/shields-format";
 
 // Run locally only
-config();
+// config();
 
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 const baseUri = process.env.SPOTIFY_BASE_URI;
 
-let accessToken: string | null = null;
-
-// In-memory cache of <displayName, { accessToken, userData}>
+// In-memory cache of <spotifyId, { accessToken, userData}>
 const cache = new Map<string, {
   userData: {
-    spotifyId: string,
     refreshCode: string
   },
   accessToken: {
@@ -48,8 +45,8 @@ const app = new Elysia()
         if (!code || error) {
           return error;
         }
-        
-        // Prepare token refresh
+
+        // Prepare token get
         const authOptions = {
           url: 'https://accounts.spotify.com/api/token',
           form: {
@@ -64,7 +61,6 @@ const app = new Elysia()
           json: true,
         };
         
-
         try {
           const accessTokenResponse = await fetch(authOptions.url, {
             method: 'POST',
@@ -88,34 +84,35 @@ const app = new Elysia()
             console.log(spotifyData);
 
             const spotifyId = spotifyData.id;
-            const displayName = spotifyData.display_name;
-            const refreshCode = accessTokenData.refresh_token;
+            const refreshToken = accessTokenData.refresh_token;
             const accessToken = accessTokenData.access_token;
             const accessTokenExpiresInMs = accessTokenData.expires_in * 1000;
 
             // Insert into cache
             const userValues = {
               userData: {
-                spotifyId: spotifyId,
-                refreshCode: refreshCode
+                refreshCode: refreshToken
               },
               accessToken: {
                 token: accessToken,
                 expiresAt: Date.now() + accessTokenExpiresInMs,
               }
             }
-            cache.set(displayName, userValues);
+            cache.set(spotifyId, userValues);
 
             // Store user in Supabase
             const upsertResponse = await supabase
               .from(KEY_SPOTIFY_TABLE)
               .upsert({
-                username: displayName,
                 "spotify-id": spotifyId,
-                "refresh-code": refreshCode
+                "refresh-code": refreshToken
               })
 
-            console.log(upsertResponse);
+            if (upsertResponse.error) {
+              return upsertResponse.error;
+            }
+
+            console.log(cache.get(spotifyId));
             
             return "You've been successfully authorized! Go look for some badges to use.";
           } else {
@@ -130,8 +127,100 @@ const app = new Elysia()
           error: t.MaybeEmpty(t.String()),
         })
       })
-      .get('/lastplayed', async () => {
-        if (!accessToken) return "No access token, try authorizing.";
+      // Refresh a token based on a code and set it in the cache - this assumes the user is in the database
+      .get('/refreshtoken', async ({ query }) => {
+        const id = query.id;
+        const code = query.code;
+
+        const authOptions = {
+          url: 'https://accounts.spotify.com/api/token',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded',
+            'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64')
+          },
+          form: {
+            grant_type: 'refresh_token',
+            refresh_token: code
+          },
+          json: true
+        };
+        
+        try {
+          const accessTokenResponse = await fetch(authOptions.url, {
+            method: 'POST',
+            headers: authOptions.headers,
+            body: new URLSearchParams(authOptions.form),
+          });
+          
+          if (accessTokenResponse.ok) {
+            const accessTokenData = await accessTokenResponse.json();
+
+            const accessToken = accessTokenData.access_token;
+            const accessTokenExpiresInMs = accessTokenData.expires_in * 1000;
+
+            // Insert into cache
+            const userValues = {
+              userData: {
+                refreshCode: code
+              },
+              accessToken: {
+                token: accessToken,
+                expiresAt: Date.now() + accessTokenExpiresInMs,
+              }
+            }
+            cache.set(id, userValues);
+            
+            return cache.get(id);
+          } else {
+            return 'Failed to authorize.';
+          }
+        } catch (error) {
+          return error;
+        }
+      }, { 
+        query: t.Object({
+          code: t.String(),
+          id: t.String()
+        })
+      })
+      .get('/lastplayed/:id', async ({ params: { id }}) => {
+        // Check for user in cache
+        let userInCache = cache.get(id);
+        let accessToken: string | null = null;
+
+        // If the user's id is not in the cache, check if they're in the database.
+        if (!userInCache) {
+          const { data, error } = await supabase
+            .from(KEY_SPOTIFY_TABLE)
+            .select()
+            .eq("spotify-id", id);
+
+          // If user is in the database, get a new access token and set it in the cache, then set userInCache
+          if (!error && data.length > 0) {
+            const getNewTokenResponse = await fetch(`${baseUri}/spotify/refreshtoken?code=${data[0]["refresh-code"]}&id=${id}`);
+
+            if (getNewTokenResponse.ok) {
+              userInCache = await getNewTokenResponse.json();
+            }
+          } else if (error) {
+            return error;
+          } else {
+            return `We don't have your Spotify id on file. Authorize at ${baseUri}/spotify/authorize or check if you spelled your username wrong.`;
+          }
+        }
+
+        const user = userInCache!;
+        console.log(user);
+        accessToken = user.accessToken.token;
+
+        // Check for token expiry - refresh if it is expired
+        if (Date.now() >= user.accessToken.expiresAt) {
+          const getNewTokenResponse = await fetch(`${baseUri}/spotify/refreshtoken?code=${user.userData.refreshCode}&id=${id}`);
+
+          if (getNewTokenResponse.ok) {
+            accessToken = cache.get(id)!.accessToken.token;
+          }
+        }
         
         const url = "https://api.spotify.com/v1/me/player/recently-played?limit=1";
         
