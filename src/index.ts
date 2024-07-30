@@ -117,9 +117,9 @@ const app = new Elysia()
 
             console.log(upsertResponse);
             
-            return await fetch(`${baseUri}/spotify/lastplayed`);
+            return "You've been successfully authorized! Go look for some badges to use.";
           } else {
-            return 'Failed to authenticate';
+            return 'Failed to authorize.';
           }
         } catch (error) {
           return error;
