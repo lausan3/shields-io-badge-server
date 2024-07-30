@@ -4,7 +4,7 @@ import { config } from 'dotenv';
 // Endpoints
 import ShieldsJSONFormat from "./shields/shields-format";
 
-config();
+// config();
 
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
