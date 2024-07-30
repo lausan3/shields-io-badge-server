@@ -109,7 +109,7 @@ const app = new Elysia()
       }
     })
   }) // End /Spotify group
-.listen(3000);
+.listen(process.env.PORT || 3000);
 
 const redirect_uri = `${app.server?.hostname}`
 
