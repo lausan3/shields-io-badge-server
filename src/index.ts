@@ -92,7 +92,7 @@ const app = new Elysia()
         const lastSong = json.items[0].track;
 
         const ret: ShieldsJSONFormat = {
-          schemaVersion: "1",
+          schemaVersion: 1,
           label: "Last Song",
           message: `${lastSong.name} by ${lastSong.artists[0].name}`
         }

@@ -2,7 +2,7 @@
 /** Documentation: https://shields.io/badges/endpoint-badge */
 export default interface ShieldsJSONFormat {
   /** Required. Always the number 1. */
-  schemaVersion?: "1",
+  schemaVersion?: 1,
   /** Required. The left text, or the empty string to omit the left side of the badge. This can be overridden by the query string. */
   label: string,
   /** Required. Can't be empty. The right text. */
