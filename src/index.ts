@@ -29,7 +29,7 @@ const app = new Elysia()
     // Serve the index.html file
     return Bun.file('public/index.html');
   })
-  .group('/spotify', app => {
+  .group('/signin', app => {
     return app
       // Send the user an authorization redirect
       .get('/authorize', async () => {
@@ -37,7 +37,7 @@ const app = new Elysia()
         const baseUrl = "https://accounts.spotify.com/authorize";
         
         // Redirect to authorize link
-        return redirect(`${baseUrl}?response_type=code&client_id=${clientId}&scope=${scope}&redirect_uri=${baseUri}/spotify/callback`)
+        return redirect(`${baseUrl}?response_type=code&client_id=${clientId}&scope=${scope}&redirect_uri=${baseUri}/signin/callback`)
       })
       // Get a new key and cache it
       .get('/callback', async ({ query }) => {
@@ -54,7 +54,7 @@ const app = new Elysia()
           url: 'https://accounts.spotify.com/api/token',
           form: {
             code: code,
-            redirect_uri: `${baseUri}/spotify/callback`,
+            redirect_uri: `${baseUri}/signin/callback`,
             grant_type: 'authorization_code',
           },
           headers: {
@@ -186,82 +186,82 @@ const app = new Elysia()
           id: t.String()
         })
       })
-      .get('/lastplayed/:id', async ({ params: { id }}) => {
-        // Check for user in cache
-        let userInCache = cache.get(id);
-        let accessToken: string | null = null;
-
-        // If the user's id is not in the cache, check if they're in the database.
-        if (!userInCache) {
-          const { data, error } = await supabase
+    }) // End /signin group
+    .group('/badges', app => {
+      return app
+        .get('/lastplayed/:id', async ({ params: { id }}) => {
+          // Check for user in cache
+          let userInCache = cache.get(id);
+          let accessToken: string | null = null;
+          
+          // If the user's id is not in the cache, check if they're in the database.
+          if (!userInCache) {
+            const { data, error } = await supabase
             .from(KEY_SPOTIFY_TABLE)
             .select()
             .eq("spotify-id", id);
-
-          // If user is in the database, get a new access token and set it in the cache, then set userInCache
-          if (!error && data.length > 0) {
-            const getNewTokenResponse = await fetch(`${baseUri}/spotify/refreshtoken?code=${data[0]["refresh-code"]}&id=${id}`);
-
+            
+            // If user is in the database, get a new access token and set it in the cache, then set userInCache
+            if (!error && data.length > 0) {
+              const getNewTokenResponse = await fetch(`${baseUri}/signin/refreshtoken?code=${data[0]["refresh-code"]}&id=${id}`);
+              
+              if (getNewTokenResponse.ok) {
+                userInCache = await getNewTokenResponse.json();
+              }
+            } else if (error) {
+              return error;
+            } else {
+              return `We don't have your Spotify id on file. Authorize at ${baseUri}/signin/authorize or check if you spelled your username wrong.`;
+            }
+          }
+          
+          const user = userInCache!;
+          console.log(user);
+          accessToken = user.accessToken.token;
+          
+          // Check for token expiry - refresh if it is expired
+          if (Date.now() >= user.accessToken.expiresAt) {
+            const getNewTokenResponse = await fetch(`${baseUri}/signin/refreshtoken?code=${user.userData.refreshCode}&id=${id}`);
+            
             if (getNewTokenResponse.ok) {
-              userInCache = await getNewTokenResponse.json();
+              accessToken = cache.get(id)!.accessToken.token;
             }
-          } else if (error) {
-            return error;
+          }
+          
+          const url = "https://api.spotify.com/v1/me/player/recently-played?limit=1";
+          
+          try {
+            const response = await fetch(url,
+              {
+              headers: {
+                "authorization": `Bearer ${accessToken}`
+              }
+            }
+          );
+          const json = await response.json();
+          
+          if (response.ok) {
+            
+            const lastSong = json.items[0].track;
+            
+            const ret: ShieldsJSONFormat = {
+              schemaVersion: 1,
+              label: "Last Song Played",
+              message: `${lastSong.name} by ${lastSong.artists[0].name}`,
+              namedLogo: "spotify"
+            }
+            
+            return ret;
           } else {
-            return `We don't have your Spotify id on file. Authorize at ${baseUri}/spotify/authorize or check if you spelled your username wrong.`;
+            return json.error;
           }
+        } catch (error) {
+          return error;
         }
-
-        const user = userInCache!;
-        console.log(user);
-        accessToken = user.accessToken.token;
-
-        // Check for token expiry - refresh if it is expired
-        if (Date.now() >= user.accessToken.expiresAt) {
-          const getNewTokenResponse = await fetch(`${baseUri}/spotify/refreshtoken?code=${user.userData.refreshCode}&id=${id}`);
-
-          if (getNewTokenResponse.ok) {
-            accessToken = cache.get(id)!.accessToken.token;
-          }
-        }
-        
-        const url = "https://api.spotify.com/v1/me/player/recently-played?limit=1";
-        
-        try {
-          const response = await fetch(url,
-            {
-            headers: {
-              "authorization": `Bearer ${accessToken}`
-            }
-          }
-        );
-        const json = await response.json();
-        
-        if (response.ok) {
-          
-          const lastSong = json.items[0].track;
-          
-          const ret: ShieldsJSONFormat = {
-            schemaVersion: 1,
-            label: "Last Song Played",
-            message: `${lastSong.name} by ${lastSong.artists[0].name}`,
-            namedLogo: "spotify"
-          }
-          
-          return ret;
-        } else {
-          return json.error;
-        }
-      } catch (error) {
-        return error;
-      }
+      })
     })
-  }) // End /Spotify group
-.listen(process.env.PORT || 3000);
-
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-);
-
-// Test last played feature
-// app.handle(new Request(`http://localhost:3000/spotify/lastplayed/5`)).then(console.log);
+    .listen(process.env.PORT || 3000);
+    
+    console.log(
+      `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
+    );
