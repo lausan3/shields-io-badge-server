@@ -14,10 +14,9 @@ const baseUri = process.env.SPOTIFY_BASE_URI;
 
 let accessToken: string | null = null;
 
-// In-memory cache of <username, { accessToken, userData}>
+// In-memory cache of <displayName, { accessToken, userData}>
 const cache = new Map<string, {
   userData: {
-    supaId: number,
     spotifyId: string,
     refreshCode: string
   },
@@ -32,45 +31,25 @@ const app = new Elysia()
   .get("/", () => "Hello from Elysia!")
   .group('/spotify', app => {
     return app
-      // Send the user an authorization redirect if we don't have them in the database
-      .get('/authorize/:username', async ({ params: { username }}) => {
-        // Check if we have the access token in the cache
-        const userInCache = cache.get(username);
-
-        if (userInCache && userInCache.accessToken.expiresAt > Date.now()) {
-          console.log(userInCache);
-
-          // Use cached access token to fetch data
-          return "You're already authorized. Check the README for what badge you want to use.";
-        }
-
-        // Check if we have saved the user to the Supabase DB
-        const { data, error } = await supabase
-          .from(KEY_SPOTIFY_TABLE)
-          .select()
-          .eq("username", username);
-
-        if (!error && data.length > 0) {
-          // Load user into cache with new key by calling callback endpoint
-          console.log(data);
-
-          return await fetch(`${baseUri}/spotify/callback?code=${data[0]["refresh-code"]}`); 
-        }
-        
-        const scope = "user-read-recently-played user-read-private";
-        
+      // Send the user an authorization redirect
+      .get('/authorize', async () => {
+        const scope = "user-read-recently-played user-read-private user-read-email";
         const baseUrl = "https://accounts.spotify.com/authorize";
         
+        // Redirect to authorize link
         return redirect(`${baseUrl}?response_type=code&client_id=${clientId}&scope=${scope}&redirect_uri=${baseUri}/spotify/callback`)
       })
+      // Get a new key and cache it
       .get('/callback', async ({ query }) => {
         const code = query.code || null;
         const error = query.error || null;
         
+        // We ran into an error, return it
         if (!code || error) {
           return error;
         }
         
+        // Prepare token refresh
         const authOptions = {
           url: 'https://accounts.spotify.com/api/token',
           form: {
@@ -85,16 +64,58 @@ const app = new Elysia()
           json: true,
         };
         
+
         try {
-          const response = await fetch(authOptions.url, {
+          const accessTokenResponse = await fetch(authOptions.url, {
             method: 'POST',
             headers: authOptions.headers,
             body: new URLSearchParams(authOptions.form),
           });
           
-          if (response.ok) {
-            const data = await response.json();
-            accessToken = data.access_token;
+          if (accessTokenResponse.ok) {
+            const accessTokenData = await accessTokenResponse.json();
+
+            const spotifyDataResponse = await fetch("https://api.spotify.com/v1/me",
+              {
+                headers: {
+                  "authorization": `Bearer ${accessTokenData.access_token}`
+                }
+              }
+            );
+
+            const spotifyData = await spotifyDataResponse.json();
+
+            console.log(spotifyData);
+
+            const spotifyId = spotifyData.id;
+            const displayName = spotifyData.display_name;
+            const refreshCode = accessTokenData.refresh_token;
+            const accessToken = accessTokenData.access_token;
+            const accessTokenExpiresInMs = accessTokenData.expires_in * 1000;
+
+            // Insert into cache
+            const userValues = {
+              userData: {
+                spotifyId: spotifyId,
+                refreshCode: refreshCode
+              },
+              accessToken: {
+                token: accessToken,
+                expiresAt: Date.now() + accessTokenExpiresInMs,
+              }
+            }
+            cache.set(displayName, userValues);
+
+            // Store user in Supabase
+            const upsertResponse = await supabase
+              .from(KEY_SPOTIFY_TABLE)
+              .upsert({
+                username: displayName,
+                "spotify-id": spotifyId,
+                "refresh-code": refreshCode
+              })
+
+            console.log(upsertResponse);
             
             return await fetch(`${baseUri}/spotify/lastplayed`);
           } else {
@@ -106,7 +127,7 @@ const app = new Elysia()
       }, {
         query: t.Object({
           code: t.MaybeEmpty(t.String()),
-          error: t.MaybeEmpty(t.String())
+          error: t.MaybeEmpty(t.String()),
         })
       })
       .get('/lastplayed', async () => {
