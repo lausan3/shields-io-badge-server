@@ -10,7 +10,7 @@ Keep reading to get started!
 
 To use this service, visit [this link](https://lausan-badge-server-10c6eb697973.herokuapp.com/spotify/authorize) and follow the steps to authorize some data that I need using your Spotify account (I only need your recently played songs and Spotify id).
 
-After you're done, go to [Shields.io](https://shields.io/badges/endpoint-badge) and make a link from [here](https://github.com/lausan3/shields-io-badge-server/edit/main/README.md#available-badges) and customize your badge to your hearts content!
+After you're done, go to [Shields.io](https://shields.io/badges/endpoint-badge) and make a link from [here](https://github.com/lausan3/shields-io-badge-server?tab=readme-ov-file#available-badges) and customize your badge to your hearts content!
 
 Next, find your Spotify ID (the username you log in with). If you don't know it, you can go to your Spotify profile and the bit after ```/user/``` is your ID. Use this so the server can display YOUR information.
 ![example](https://github.com/user-attachments/assets/1bc83a5b-6dfc-4ee9-8f72-0a5a1749f06a)
