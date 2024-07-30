@@ -2,7 +2,7 @@ import { Elysia, redirect, t } from "elysia";
 import { config } from 'dotenv';
 
 // Endpoints
-import ShieldsJSONFormat from "./shields/shields-format";
+import ShieldsJSONFormat from "./models/shields-format";
 
 // Run locally only
 // config();
@@ -110,8 +110,6 @@ const app = new Elysia()
     })
   }) // End /Spotify group
 .listen(process.env.PORT || 3000);
-
-const redirect_uri = `${app.server?.hostname}`
 
 console.log(
   `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
