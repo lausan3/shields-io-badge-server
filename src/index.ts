@@ -26,10 +26,8 @@ const cache = new Map<string, {
 
 const app = new Elysia()
   .get("/", () => {
-    return {
-      hello: "Hello from Elysia!",
-      verification: Bun.file('public/googled23ff0e3284ed5f2.html')
-    }
+    // Serve the index.html file
+    return Bun.file('public/index.html');
   })
   .group('/spotify', app => {
     return app
