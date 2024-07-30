@@ -14,22 +14,19 @@ export type Database = {
           created_at: string
           id: number
           "refresh-code": string
-          "spotify-id": string | null
-          username: string
+          "spotify-id": string
         }
         Insert: {
           created_at?: string
           id?: number
           "refresh-code": string
-          "spotify-id"?: string | null
-          username: string
+          "spotify-id": string
         }
         Update: {
           created_at?: string
           id?: number
           "refresh-code"?: string
-          "spotify-id"?: string | null
-          username?: string
+          "spotify-id"?: string
         }
         Relationships: []
       }
