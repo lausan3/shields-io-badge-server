@@ -17,7 +17,7 @@ const app = new Elysia()
   .get("/", () => "Hello from Elysia!")
   .group('/spotify', app => {
     return app
-      .all('/authorize', async () => {
+      .get('/authorize', async () => {
         if (accessToken) {
           return await fetch(`${baseUri}/spotify/lastplayed`);
         }
