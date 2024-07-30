@@ -1,11 +1,12 @@
 import { Elysia, redirect, t } from "elysia";
 import { config } from 'dotenv';
+import { supabase, KEY_SPOTIFY_TABLE } from "./client/client";
 
 // Endpoints
 import ShieldsJSONFormat from "./models/shields-format";
 
 // Run locally only
-// config();
+config();
 
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -13,16 +14,50 @@ const baseUri = process.env.SPOTIFY_BASE_URI;
 
 let accessToken: string | null = null;
 
+// In-memory cache of <username, { accessToken, userData}>
+const cache = new Map<string, {
+  userData: {
+    supaId: number,
+    spotifyId: string,
+    refreshCode: string
+  },
+  accessToken: {
+    token: string,
+    // Expiry time in milliseconds
+    expiresAt: number
+  }
+}>();
+
 const app = new Elysia()
   .get("/", () => "Hello from Elysia!")
   .group('/spotify', app => {
     return app
-      .get('/authorize', async () => {
-        if (accessToken) {
-          return await fetch(`${baseUri}/spotify/lastplayed`);
+      // Send the user an authorization redirect if we don't have them in the database
+      .get('/authorize/:username', async ({ params: { username }}) => {
+        // Check if we have the access token in the cache
+        const userInCache = cache.get(username);
+
+        if (userInCache && userInCache.accessToken.expiresAt > Date.now()) {
+          console.log(userInCache);
+
+          // Use cached access token to fetch data
+          return "You're already authorized. Check the README for what badge you want to use.";
+        }
+
+        // Check if we have saved the user to the Supabase DB
+        const { data, error } = await supabase
+          .from(KEY_SPOTIFY_TABLE)
+          .select()
+          .eq("username", username);
+
+        if (!error && data.length > 0) {
+          // Load user into cache with new key by calling callback endpoint
+          console.log(data);
+
+          return await fetch(`${baseUri}/spotify/callback?code=${data[0]["refresh-code"]}`); 
         }
         
-        const scope = "user-read-recently-played";
+        const scope = "user-read-recently-played user-read-private";
         
         const baseUrl = "https://accounts.spotify.com/authorize";
         
