@@ -88,6 +88,8 @@ const app = new Elysia()
 
             const spotifyData = await spotifyDataResponse.json();
 
+            // NOTE: ERROR HERE
+
             console.log(`PASSED spotify data json ${JSON.stringify(spotifyData)}`)
 
             const spotifyId = spotifyData.id;
@@ -259,9 +261,11 @@ const app = new Elysia()
               }
             );
 
-            console.log(`Passed fetch: ${JSON.stringify(response)}`)
+            console.log(`Passed fetch: ${response.body}. ${response.status}. ${response.statusText}`)
 
             const json = await response.json();
+
+            // NOTE: ERROR HERE
 
             console.log(`Passed JSON conversion: ${JSON.stringify(json)}`)
             
@@ -277,9 +281,6 @@ const app = new Elysia()
               }
               
               return ret;
-            } else {
-              console.log(`Caught error from spotify fetch conversion${json.error}`)
-              return json.error;
             }
           } catch (error) {
             console.log(`Caught error during fetch: ${error}`)
