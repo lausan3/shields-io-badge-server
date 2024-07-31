@@ -43,8 +43,6 @@ const app = new Elysia()
       .get('/callback', async ({ query }) => {
         const code = query.code || null;
         const error = query.error || null;
-        
-        console.log("passed query param check")
 
         // We ran into an error, return it
         if (!code || error) {
@@ -65,8 +63,6 @@ const app = new Elysia()
             'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64'),
           },
         };
-
-        console.log("passed authOptions")
         
         try {
           const accessTokenResponse = await fetch(authOptions.url, {
@@ -75,12 +71,12 @@ const app = new Elysia()
             body: new URLSearchParams(authOptions.form),
           });
 
-          console.log(`passed new access token fetch: ${accessTokenResponse}`)
+          console.log(`passed new access token fetch: ${JSON.stringify(accessTokenResponse)}`)
           
           if (accessTokenResponse.ok) {
             const accessTokenData = await accessTokenResponse.json();
             
-            console.log(`passed access response json: ${accessTokenData}`)
+            console.log(`passed access response json: ${JSON.stringify(accessTokenData)}`)
 
             const spotifyDataResponse = await fetch("https://api.spotify.com/v1/me",
               {
@@ -94,7 +90,7 @@ const app = new Elysia()
 
             const spotifyData = await spotifyDataResponse.json();
 
-            console.log(`passed spotify data json ${spotifyData}`)
+            console.log(`passed spotify data json ${JSON.stringify(spotifyData)}`)
 
             const spotifyId = spotifyData.id;
             const refreshToken = accessTokenData.refresh_token;
@@ -123,7 +119,7 @@ const app = new Elysia()
                 "refresh-code": refreshToken
               })
 
-              console.log(`passed upsert ${upsertResponse}`)
+              console.log(`passed upsert ${JSON.stringify(upsertResponse)}`)
 
             if (upsertResponse.error) {
               return upsertResponse.error;
@@ -245,32 +241,33 @@ const app = new Elysia()
           try {
             const response = await fetch(url,
               {
-              headers: {
-                "authorization": `Bearer ${accessToken}`
+                headers: {
+                  "authorization": `Bearer ${accessToken}`
+                }
               }
+            );
+            const json = await response.json();
+            
+            if (response.ok) {
+              
+              const lastSong = json.items[0].track;
+              
+              const ret: ShieldsJSONFormat = {
+                schemaVersion: 1,
+                label: "Last Song Played",
+                message: `${lastSong.name} by ${lastSong.artists[0].name}`,
+                namedLogo: "spotify"
+              }
+              
+              return ret;
+            } else {
+              return json.error;
             }
-          );
-          const json = await response.json();
-          
-          if (response.ok) {
-            
-            const lastSong = json.items[0].track;
-            
-            const ret: ShieldsJSONFormat = {
-              schemaVersion: 1,
-              label: "Last Song Played",
-              message: `${lastSong.name} by ${lastSong.artists[0].name}`,
-              namedLogo: "spotify"
-            }
-            
-            return ret;
-          } else {
-            return json.error;
+          } catch (error) {
+            return error;
           }
-        } catch (error) {
-          return error;
         }
-      })
+      )
     })
     .listen(process.env.PORT || 3000);
     
