@@ -84,8 +84,6 @@ const app = new Elysia()
 
             const spotifyData = await spotifyDataResponse.json();
 
-            console.log(spotifyData);
-
             const spotifyId = spotifyData.id;
             const refreshToken = accessTokenData.refresh_token;
             const accessToken = accessTokenData.access_token;
@@ -114,8 +112,6 @@ const app = new Elysia()
             if (upsertResponse.error) {
               return upsertResponse.error;
             }
-
-            console.log(cache.get(spotifyId));
             
             return "You've been successfully authorized! Go look for some badges to use.";
           } else {
@@ -216,7 +212,6 @@ const app = new Elysia()
           }
           
           const user = userInCache!;
-          console.log(user);
           accessToken = user.accessToken.token;
           
           // Check for token expiry - refresh if it is expired
