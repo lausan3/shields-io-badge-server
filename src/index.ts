@@ -70,13 +70,11 @@ const app = new Elysia()
             headers: authOptions.headers,
             body: new URLSearchParams(authOptions.form),
           });
-
-          console.log(`passed new access token fetch: ${JSON.stringify(accessTokenResponse)}`)
           
           if (accessTokenResponse.ok) {
             const accessTokenData = await accessTokenResponse.json();
-            
-            console.log(`passed access response json: ${JSON.stringify(accessTokenData)}`)
+
+            console.log(`passed upsert ${JSON.stringify(accessTokenResponse)}`)
 
             const spotifyDataResponse = await fetch("https://api.spotify.com/v1/me",
               {
@@ -86,11 +84,11 @@ const app = new Elysia()
               }
             );
 
-            console.log(`passed fetch spotify data ${JSON.stringify(spotifyDataResponse)}`)
+            console.log(`PASSED fetch spotify data ${spotifyDataResponse.body}. ${spotifyDataResponse.status}. ${spotifyDataResponse.statusText}`)
 
             const spotifyData = await spotifyDataResponse.json();
 
-            console.log(`passed spotify data json ${JSON.stringify(spotifyData)}`)
+            console.log(`PASSED spotify data json ${JSON.stringify(spotifyData)}`)
 
             const spotifyId = spotifyData.id;
             const refreshToken = accessTokenData.refresh_token;
@@ -109,8 +107,6 @@ const app = new Elysia()
             }
             cache.set(spotifyId, userValues);
 
-            console.log(`passed caching`)
-
             // Store user in Supabase
             const upsertResponse = await supabase
               .from(KEY_SPOTIFY_TABLE)
@@ -119,13 +115,11 @@ const app = new Elysia()
                 "refresh-code": refreshToken
               })
 
-              console.log(`passed upsert ${JSON.stringify(upsertResponse)}`)
+            console.log(`passed upsert ${JSON.stringify(upsertResponse)}`)
 
             if (upsertResponse.error) {
               return upsertResponse.error;
             }
-
-            console.log(`no upsert error`)
             
             return "You've been successfully authorized! Go look for some badges to use.";
           } else {
@@ -199,36 +193,52 @@ const app = new Elysia()
     .group('/badges', app => {
       return app
         .get('/lastplayed/:id', async ({ params: { id }}) => {
+          console.log(`GETTING LAST PLAYED BADGE FOR ID: ${id}`)
+
           // Check for user in cache
           let userInCache = cache.get(id);
           let accessToken: string | null = null;
+
+          console.log("Checking if the user is in the cache.");
           
           // If the user's id is not in the cache, check if they're in the database.
           if (!userInCache) {
+            console.log(`User is not in the cache. Checking Supa for data on id: ${id}`);
+
             const { data, error } = await supabase
             .from(KEY_SPOTIFY_TABLE)
             .select()
             .eq("spotify-id", id);
+
+            console.log(`Supa data received: ${data}. error?: ${error}.`)
             
             // If user is in the database, get a new access token and set it in the cache, then set userInCache
             if (!error && data.length > 0) {
+              console.log(`Refreshing token for user ${id}.`)
               const getNewTokenResponse = await fetch(`${baseUri}/signin/refreshtoken?code=${data[0]["refresh-code"]}&id=${id}`);
               
               if (getNewTokenResponse.ok) {
+                console.log(`Refreshing token was successful.`)
                 userInCache = await getNewTokenResponse.json();
+                console.log(`User: ${JSON.stringify(userInCache)}`)
               }
             } else if (error) {
+              console.log(`Error occured in getting Supa data: ${error}`)
               return error;
             } else {
+              console.log(`User doesn't exist. Prompting authorization.`)
               return `We don't have your Spotify id on file. Authorize at ${baseUri}/signin/authorize or check if you spelled your username wrong.`;
             }
           }
           
           const user = userInCache!;
           accessToken = user.accessToken.token;
+          console.log(`Preliminary checks complete. User: ${user}`)
+          console.log(`Access token: ${accessToken}`)
           
           // Check for token expiry - refresh if it is expired
           if (Date.now() >= user.accessToken.expiresAt) {
+            console.log(`Token is expired. Refreshing it.`)
             const getNewTokenResponse = await fetch(`${baseUri}/signin/refreshtoken?code=${user.userData.refreshCode}&id=${id}`);
             
             if (getNewTokenResponse.ok) {
@@ -238,6 +248,8 @@ const app = new Elysia()
           
           const url = "https://api.spotify.com/v1/me/player/recently-played?limit=1";
           
+          console.log(`Fetching ${url} for ${id}`)
+
           try {
             const response = await fetch(url,
               {
@@ -246,7 +258,12 @@ const app = new Elysia()
                 }
               }
             );
+
+            console.log(`Passed fetch: ${JSON.stringify(response)}`)
+
             const json = await response.json();
+
+            console.log(`Passed JSON conversion: ${JSON.stringify(json)}`)
             
             if (response.ok) {
               
@@ -261,9 +278,11 @@ const app = new Elysia()
               
               return ret;
             } else {
+              console.log(`Caught error from spotify fetch conversion${json.error}`)
               return json.error;
             }
           } catch (error) {
+            console.log(`Caught error during fetch: ${error}`)
             return error;
           }
         }
