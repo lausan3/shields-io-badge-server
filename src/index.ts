@@ -86,7 +86,7 @@ const app = new Elysia()
               }
             );
 
-            console.log(`passed fetch spotify data ${spotifyDataResponse.body}. ${spotifyDataResponse.status}. ${spotifyDataResponse.statusText}`)
+            console.log(`passed fetch spotify data ${JSON.stringify(spotifyDataResponse)}`)
 
             const spotifyData = await spotifyDataResponse.json();
 
