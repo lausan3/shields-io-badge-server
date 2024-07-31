@@ -44,10 +44,13 @@ const app = new Elysia()
         const code = query.code || null;
         const error = query.error || null;
         
+        console.log("passed query param check")
+
         // We ran into an error, return it
         if (!code || error) {
           return error;
         }
+
 
         // Prepare token get
         const authOptions = {
@@ -62,6 +65,8 @@ const app = new Elysia()
             'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64'),
           },
         };
+
+        console.log("passed authOptions")
         
         try {
           const accessTokenResponse = await fetch(authOptions.url, {
@@ -69,9 +74,13 @@ const app = new Elysia()
             headers: authOptions.headers,
             body: new URLSearchParams(authOptions.form),
           });
+
+          console.log(`passed new access token fetch: ${accessTokenResponse}`)
           
           if (accessTokenResponse.ok) {
             const accessTokenData = await accessTokenResponse.json();
+            
+            console.log(`passed access response json: ${accessTokenData}`)
 
             const spotifyDataResponse = await fetch("https://api.spotify.com/v1/me",
               {
@@ -81,7 +90,11 @@ const app = new Elysia()
               }
             );
 
+            console.log(`passed fetch spotify data ${spotifyDataResponse}`)
+
             const spotifyData = await spotifyDataResponse.json();
+
+            console.log(`passed spotify data json ${spotifyData}`)
 
             const spotifyId = spotifyData.id;
             const refreshToken = accessTokenData.refresh_token;
@@ -100,6 +113,8 @@ const app = new Elysia()
             }
             cache.set(spotifyId, userValues);
 
+            console.log(`passed caching`)
+
             // Store user in Supabase
             const upsertResponse = await supabase
               .from(KEY_SPOTIFY_TABLE)
@@ -108,11 +123,13 @@ const app = new Elysia()
                 "refresh-code": refreshToken
               })
 
-            console.log(upsertResponse);
+              console.log(`passed upsert ${upsertResponse}`)
 
             if (upsertResponse.error) {
               return upsertResponse.error;
             }
+
+            console.log(`no upsert error`)
             
             return "You've been successfully authorized! Go look for some badges to use.";
           } else {
