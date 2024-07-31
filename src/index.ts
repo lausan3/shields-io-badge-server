@@ -61,7 +61,6 @@ const app = new Elysia()
             'content-type': 'application/x-www-form-urlencoded',
             'Authorization': 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64'),
           },
-          json: true,
         };
         
         try {
@@ -109,6 +108,8 @@ const app = new Elysia()
                 "refresh-code": refreshToken
               })
 
+            console.log(upsertResponse);
+
             if (upsertResponse.error) {
               return upsertResponse.error;
             }
@@ -141,7 +142,6 @@ const app = new Elysia()
             grant_type: 'refresh_token',
             refresh_token: code
           },
-          json: true
         };
         
         try {
