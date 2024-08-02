@@ -6,7 +6,7 @@ import { supabase, KEY_SPOTIFY_TABLE } from "./client/client";
 import ShieldsJSONFormat from "./models/shields-format";
 
 // Run locally only
-// config();
+config();
 
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
@@ -206,30 +206,32 @@ const app = new Elysia()
           // If the user's id is not in the cache, check if they're in the database.
           if (!userInCache) {
             console.log(`User is not in the cache. Checking Supa for data on id: ${id}`);
-
-            const { data, error } = await supabase
-            .from(KEY_SPOTIFY_TABLE)
-            .select()
-            .eq("spotify-id", id);
-
-            console.log(`Supa data received: ${data}. error?: ${error}.`)
             
-            // If user is in the database, get a new access token and set it in the cache, then set userInCache
-            if (!error && data.length > 0) {
-              console.log(`Refreshing token for user ${id}.`)
-              const getNewTokenResponse = await fetch(`${baseUri}/signin/refreshtoken?code=${data[0]["refresh-code"]}&id=${id}`);
+            try {
+              const { data, error } = await supabase
+              .from(KEY_SPOTIFY_TABLE)
+              .select()
+              .eq("spotify-id", id);
+  
+              console.log(`Supa data received: ${JSON.stringify(data)}. error?: ${error}.`)
               
-              if (getNewTokenResponse.ok) {
-                console.log(`Refreshing token was successful.`)
-                userInCache = await getNewTokenResponse.json();
-                console.log(`User: ${JSON.stringify(userInCache)}`)
+              // If user is in the database, get a new access token and set it in the cache, then set userInCache
+              if (!error && data.length > 0) {
+                console.log(`Refreshing token for user ${id}.`)
+                const getNewTokenResponse = await fetch(`${baseUri}/signin/refreshtoken?code=${data[0]["refresh-code"]}&id=${id}`);
+                
+                if (getNewTokenResponse.ok) {
+                  console.log(`Refreshing token was successful.`)
+                  userInCache = await getNewTokenResponse.json();
+                  console.log(`User: ${JSON.stringify(userInCache)}`)
+                }
+              } else {
+                console.log(`User doesn't exist. Prompting authorization.`)
+                return `We don't have your Spotify id on file. Authorize at ${baseUri}/signin/authorize or check if you spelled your username wrong.`;
               }
-            } else if (error) {
-              console.log(`Error occured in getting Supa data: ${error}`)
+            } catch (error) {
+              console.log(`Error during token refresh: ${error}`)
               return error;
-            } else {
-              console.log(`User doesn't exist. Prompting authorization.`)
-              return `We don't have your Spotify id on file. Authorize at ${baseUri}/signin/authorize or check if you spelled your username wrong.`;
             }
           }
           
@@ -261,7 +263,7 @@ const app = new Elysia()
               }
             );
 
-            console.log(`Passed fetch: ${response.body}. ${response.status}. ${response.statusText}`)
+            console.log(`Passed fetch: ${response}. ${response.status}. ${response.statusText}`)
 
             const json = await response.json();
 
