@@ -24,11 +24,17 @@ const cache = new Map<string, {
   }
 }>();
 
+// Prevent Heroku from shutting down
+setInterval(() => {
+  fetch("/ping");
+}, 600000)
+
 const app = new Elysia()
   .get("/", () => {
     // Serve the index.html file
     return Bun.file('public/index.html');
   })
+  .get("/ping", () => "ping")
   .group('/signin', app => {
     return app
       // Send the user an authorization redirect
